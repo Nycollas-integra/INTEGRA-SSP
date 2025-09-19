@@ -1,0 +1,665 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Enums
+enum UserStatus {
+  PENDENTE_APROVACAO
+  ATIVO
+  INATIVO
+  SUSPENSO
+}
+
+enum Lotacao {
+  SECRETARIA
+  GCM_BY
+  DEFESA_CIVIL
+  VIGILANCIA_PATRIMONIAL
+}
+
+enum CargoSecretaria {
+  SECRETARIO
+  SECRETARIO_EXECUTIVO
+  ASSESSOR_ADMINISTRATIVO
+  ADVOGADA
+  ADVOGADA_COORD_RONDA_MP
+  ASSISTENTE_SOCIAL
+  PSICOLOGA
+  GUARDA_DISPOSICAO
+  VIGILANTE_DISPOSICAO
+}
+
+enum CargoGCM {
+  COMANDANTE
+  SUBCOMANDANTE
+  INSPETOR_CHEFE
+  INSPETOR
+  COMANDANTE_GUARNICAO
+  OUVIDOR
+  CORREGEDOR
+  MOTORISTA
+  GUARDA
+  ATENDENTE_153
+  DESPACHANTE_153
+  OPERADOR_CFTV
+  ARMEIRO
+}
+
+enum CargoDefesaCivil {
+  DIRETOR_DEFESA_CIVIL
+  TECNICO
+  AGENTE
+  AUXILIADOR_FROTA
+  DISPOSICAO
+}
+
+enum CargoVigilancia {
+  DIRETOR_VIGILANCIA
+  SUPERVISOR_CHEFE
+  SUPERVISOR
+  VIGILANTE_EFETIVO
+  VIGILANTE_CONTRATADO
+}
+
+enum TipoOcorrencia {
+  ATENDIMENTO
+  PATRULHAMENTO
+  OCORRENCIA_POLICIAL
+  ACIDENTE_TRANSITO
+  DISTURBIO_ORDEM_PUBLICA
+  OUTROS
+}
+
+enum StatusOcorrencia {
+  ABERTA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum TipoItemArmaria {
+  ARMA_FOGO
+  MUNICAO
+  COLETE
+  RADIO
+  TASER
+  ALGEMAS
+  OUTROS
+}
+
+enum StatusItem {
+  ATIVO
+  MANUTENCAO
+  BAIXADO
+}
+
+enum AcaoArmaria {
+  ENTREGA
+  DEVOLUCAO
+  TRANSFERENCIA
+  MANUTENCAO
+  BAIXA
+}
+
+enum StatusViatura {
+  DISPONIVEL
+  EM_USO
+  MANUTENCAO
+  BAIIXADA
+}
+
+enum TipoEvento {
+  REUNIAO
+  TREINAMENTO
+  CERIMONIA
+  OUTROS
+}
+
+enum StatusEvento {
+  AGENDADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum TipoMural {
+  INFORMATIVO
+  URGENTE
+  AVISO
+  COMUNICADO
+}
+
+enum StatusRondaMP {
+  VALIDA
+  A_VENCER
+  VENCIDA
+}
+
+// Tabelas principais
+model User {
+  id                String      @id @default(cuid())
+  nome              String
+  cpf               String      @unique
+  telefone          String?
+  email             String      @unique
+  matricula         String      @unique
+  lotacao           Lotacao
+  cargo             String      // Dinâmico baseado na lotação
+  funcaoDisposicao  String?
+  foto              String?
+  status            UserStatus  @default(PENDENTE_APROVACAO)
+  aprovadoPor       String?
+  aprovadoEm        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  lastLogin         DateTime?
+  
+  // Relacionamentos
+  aprovador         User?       @relation("UserAprovador", fields: [aprovadoPor], references: [id])
+  aprovados         User[]      @relation("UserAprovador")
+  
+  // Auditoria
+  auditoria         Auditoria[]
+  
+  @@map("users")
+}
+
+model Auditoria {
+  id        String   @id @default(cuid())
+  userId    String
+  acao      String
+  entidade  String
+  entidadeId String
+  diff      String?  // JSON com as mudanças
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@map("auditoria")
+}
+
+// Módulo Secretaria
+model RH {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  salario     Float?
+  admissao    DateTime?
+  demissao    DateTime?
+  observacoes String?
+  anexos      String[] // URLs dos anexos
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@map("rh")
+}
+
+model AssessoriaJuridica {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String
+  processo    String?
+  status      String
+  responsavel String
+  designados  String[] // IDs dos usuários designados
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("assessoria_juridica")
+}
+
+model RondaMP {
+  id          String        @id @default(cuid())
+  endereco    String
+  latitude    Float
+  longitude   Float
+  beneficiario String
+  cpf         String
+  telefone    String
+  validade    DateTime
+  status      StatusRondaMP @default(VALIDA)
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@map("ronda_mp")
+}
+
+model Evento {
+  id          String      @id @default(cuid())
+  titulo      String
+  descricao   String
+  dataInicio  DateTime
+  dataFim     DateTime?
+  local       String
+  tipo        TipoEvento
+  status      StatusEvento @default(AGENDADO)
+  anexos      String[]
+  publico     String[]    // IDs dos usuários convidados
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  @@map("eventos")
+}
+
+model Mural {
+  id          String    @id @default(cuid())
+  titulo      String
+  conteudo    String
+  tipo        TipoMural
+  validade    DateTime?
+  pin         Boolean   @default(false)
+  publicoAlvo String[]  // Lotações que podem ver
+  anexos      String[]
+  autorId     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  autor       User      @relation(fields: [autorId], references: [id])
+  
+  @@map("mural")
+}
+
+model Agenda {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String?
+  dataInicio  DateTime
+  dataFim     DateTime?
+  local       String?
+  userId      String   // Proprietário da agenda
+  adicionadoPor String? // Quem adicionou (se foi o Assessor)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id])
+  adicionador User?    @relation("AgendaAdicionador", fields: [adicionadoPor], references: [id])
+  adicionados Agenda[] @relation("AgendaAdicionador")
+  
+  @@map("agenda")
+}
+
+model Oficio {
+  id          String   @id @default(cuid())
+  numero      String   @unique
+  titulo      String
+  conteudo    String
+  destinatario String
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("oficios")
+}
+
+// Módulo GCM
+model Escala {
+  id          String   @id @default(cuid())
+  titulo      String
+  dataInicio  DateTime
+  dataFim     DateTime
+  turno       String
+  equipe      String[] // IDs dos guardas
+  responsavel String   // ID do responsável
+  status      String   @default("RASCUNHO")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("escalas")
+}
+
+model Patrulha {
+  id          String   @id @default(cuid())
+  viaturaId   String?
+  rota        String
+  responsavel String
+  equipe      String[] // IDs dos guardas
+  dataInicio  DateTime
+  dataFim     DateTime?
+  status      String   @default("ATIVA")
+  observacoes String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  viatura     Viatura? @relation(fields: [viaturaId], references: [id])
+  
+  @@map("patrulhas")
+}
+
+model Ocorrencia {
+  id          String          @id @default(cuid())
+  titulo      String
+  descricao   String
+  tipo        TipoOcorrencia
+  status      StatusOcorrencia @default(ABERTA)
+  endereco    String
+  latitude    Float?
+  longitude   Float?
+  criadorId   String
+  citados     String[]        // IDs dos guardas citados
+  anexos      String[]
+  dataOcorrencia DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  criador     User            @relation(fields: [criadorId], references: [id])
+  
+  @@map("ocorrencias")
+}
+
+model Viatura {
+  id          String       @id @default(cuid())
+  placa       String       @unique
+  modelo      String
+  marca       String
+  ano         Int
+  cor         String
+  status      StatusViatura @default(DISPONIVEL)
+  quilometragem Float?
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  patrulhas   Patrulha[]
+  checklists  ChecklistViatura[]
+  abastecimentos Abastecimento[]
+  manutencoes ManutencaoViatura[]
+  
+  @@map("viaturas")
+}
+
+model ChecklistViatura {
+  id          String   @id @default(cuid())
+  viaturaId   String
+  motoristaId String
+  data        DateTime @default(now())
+  itens       String   // JSON com os itens do checklist
+  observacoes String?
+  anexos      String[]
+  
+  viatura     Viatura  @relation(fields: [viaturaId], references: [id])
+  
+  @@map("checklist_viaturas")
+}
+
+model Abastecimento {
+  id          String   @id @default(cuid())
+  viaturaId   String
+  motoristaId String
+  data        DateTime @default(now())
+  litros      Float
+  valor       Float
+  posto       String
+  observacoes String?
+  anexos      String[]
+  
+  viatura     Viatura  @relation(fields: [viaturaId], references: [id])
+  
+  @@map("abastecimentos")
+}
+
+model ManutencaoViatura {
+  id          String   @id @default(cuid())
+  viaturaId   String
+  tipo        String
+  descricao   String
+  valor       Float?
+  dataInicio  DateTime
+  dataFim     DateTime?
+  status      String   @default("AGENDADA")
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  viatura     Viatura  @relation(fields: [viaturaId], references: [id])
+  
+  @@map("manutencoes_viaturas")
+}
+
+// Armaria & Equipamentos
+model ItemArmaria {
+  id          String        @id @default(cuid())
+  tipo        TipoItemArmaria
+  marca       String
+  modelo      String
+  numeroSerie String?
+  etiqueta    String?
+  calibre     String?
+  nivel       String?       // Para coletes
+  status      StatusItem    @default(ATIVO)
+  alocacao    String        // Unidade onde está
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  cautelas    CautelaArmaria[]
+  historico   HistoricoArmaria[]
+  
+  @@map("itens_armaria")
+}
+
+model CautelaArmaria {
+  id              String   @id @default(cuid())
+  itemId          String
+  servidorId      String
+  dataSaida       DateTime
+  previsaoDevolucao DateTime?
+  condicaoEntrega String
+  responsavelEntrega String
+  dataDevolucao   DateTime?
+  condicaoRetorno String?
+  responsavelRecebimento String?
+  observacoes     String?
+  anexos          String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  item            ItemArmaria @relation(fields: [itemId], references: [id])
+  
+  @@map("cautelas_armaria")
+}
+
+model HistoricoArmaria {
+  id                String      @id @default(cuid())
+  itemId            String
+  tipo              AcaoArmaria
+  matriculaServidor String
+  nomeServidor      String
+  dataHora          DateTime
+  responsavelMatricula String
+  responsavelNome   String
+  condicao          String?
+  observacao        String?
+  anexos            String[]
+  
+  item              ItemArmaria @relation(fields: [itemId], references: [id])
+  
+  @@map("historico_armaria")
+}
+
+model Ouvidoria {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String
+  denunciante String?
+  citados     String[] // IDs dos citados
+  status      String   @default("ABERTA")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("ouvidoria")
+}
+
+model Corregedoria {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String
+  processo    String?
+  citados     String[] // IDs dos citados
+  status      String   @default("ABERTA")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("corregedoria")
+}
+
+model Atendimento153 {
+  id          String   @id @default(cuid())
+  numero      String   @unique
+  descricao   String
+  endereco    String
+  latitude    Float?
+  longitude   Float?
+  atendenteId String
+  despachanteId String?
+  patrulhaId  String?
+  status      String   @default("ABERTA")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("atendimentos_153")
+}
+
+model EventoCFTV {
+  id          String   @id @default(cuid())
+  camera      String
+  dataHora    DateTime
+  descricao   String
+  operadorId  String
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  
+  @@map("eventos_cftv")
+}
+
+// Módulo Defesa Civil
+model OcorrenciaDefesaCivil {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String
+  tipo        String
+  endereco    String
+  latitude    Float?
+  longitude   Float?
+  status      String   @default("ABERTA")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("ocorrencias_defesa_civil")
+}
+
+model PlanoDefesaCivil {
+  id          String   @id @default(cuid())
+  titulo      String
+  descricao   String
+  tipo        String
+  status      String   @default("ATIVO")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("planos_defesa_civil")
+}
+
+model AbrigoDefesaCivil {
+  id          String   @id @default(cuid())
+  nome        String
+  endereco    String
+  latitude    Float?
+  longitude   Float?
+  capacidade  Int
+  status      String   @default("DISPONIVEL")
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("abrigos_defesa_civil")
+}
+
+// Módulo Vigilância Patrimonial
+model PontoVigilancia {
+  id          String   @id @default(cuid())
+  nome        String
+  endereco    String
+  latitude    Float
+  longitude   Float
+  tipo        String   // risco, violência, facções, etc.
+  prioridade  String
+  horarios    String   // JSON com horários
+  contatos    String   // JSON com contatos
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  rondas      RondaVigilancia[]
+  ocorrencias OcorrenciaVigilancia[]
+  
+  @@map("pontos_vigilancia")
+}
+
+model RondaVigilancia {
+  id          String   @id @default(cuid())
+  pontoId     String
+  vigilanteId String
+  dataInicio  DateTime
+  dataFim     DateTime?
+  checklist   String   // JSON com checklist
+  observacoes String?
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  
+  ponto       PontoVigilancia @relation(fields: [pontoId], references: [id])
+  
+  @@map("rondas_vigilancia")
+}
+
+model OcorrenciaVigilancia {
+  id          String   @id @default(cuid())
+  pontoId     String
+  titulo      String
+  descricao   String
+  tipo        String
+  status      String   @default("ABERTA")
+  anexos      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  ponto       PontoVigilancia @relation(fields: [pontoId], references: [id])
+  
+  @@map("ocorrencias_vigilancia")
+}
+
+// Notificações
+model Notificacao {
+  id        String   @id @default(cuid())
+  userId    String
+  titulo    String
+  mensagem  String
+  tipo      String
+  lida      Boolean  @default(false)
+  data      DateTime @default(now())
+  
+  @@map("notificacoes")
+}
